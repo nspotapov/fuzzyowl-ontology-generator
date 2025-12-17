@@ -6,7 +6,8 @@ class EntityExtractor:
         results = []
 
         for token in doc:
-            # 1. ADJ + NOUN → нечеткий концепт
+
+            # ADJ + NOUN → нечеткий концепт
             if token.pos_ == "ADJ" and token.head.pos_ == "NOUN":
                 results.append(
                     {
@@ -16,35 +17,35 @@ class EntityExtractor:
                     }
                 )
 
-                # сразу добавляем связь hasQuality
                 results.append(
                     {
                         "type": "relation",
                         "relation": "hasQuality",
                         "from": token.head.lemma_,
                         "to": token.lemma_,
+                        "degree": None,
                     }
                 )
 
-            # 2. Сущности
+            # сущности
             if token.pos_ == "NOUN":
                 results.append({"type": "entity", "entity": token.lemma_})
 
-            # 3. Глагол → связь relatedTo
+            # Нечеткие глагольные отношения
             if token.pos_ == "VERB":
-                subjects = [child for child in token.children if child.dep_ == "nsubj"]
-                objects = [
-                    child for child in token.children if child.dep_ in ("obj", "obl")
-                ]
+                adverbs = [c for c in token.children if c.pos_ == "ADV"]
+                subjects = [c for c in token.children if c.dep_ == "nsubj"]
+                objects = [c for c in token.children if c.dep_ in ("obj", "obl")]
 
                 for subj in subjects:
                     for obj in objects:
                         results.append(
                             {
-                                "type": "relation",
+                                "type": "fuzzy_relation",
                                 "relation": "relatedTo",
                                 "from": subj.lemma_,
                                 "to": obj.lemma_,
+                                "modifier": adverbs[0].lemma_ if adverbs else None,
                             }
                         )
 

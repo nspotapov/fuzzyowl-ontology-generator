@@ -6,7 +6,7 @@ from ontology_builder import OntologyBuilder
 
 def main():
     text = """
-    Высокий риск сердечного заболевания характерен для пожилых людей
+    Система сильно влияет на надежность
     """
 
     nlp = NLPProcessor()

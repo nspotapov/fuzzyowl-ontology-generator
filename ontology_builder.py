@@ -1,5 +1,5 @@
-from owlready2 import *
 import uuid
+from owlready2 import *
 import types
 
 
@@ -19,12 +19,16 @@ class OntologyBuilder:
             class FuzzyConcept(Thing):
                 pass
 
-            class hasQuality(ObjectProperty):
-                domain = [Entity]
-                range = [Quality]
+            # 🔥 Рефицированное отношение
+            class FuzzyRelation(Thing):
+                pass
 
-            class relatedTo(ObjectProperty):
-                domain = [Entity]
+            class hasSource(ObjectProperty):
+                domain = [FuzzyRelation]
+                range = [Entity]
+
+            class hasTarget(ObjectProperty):
+                domain = [FuzzyRelation]
                 range = [Entity]
 
             class fuzzyDegree(AnnotationProperty):
@@ -38,44 +42,50 @@ class OntologyBuilder:
     def build(self, extracted, fuzzy_mapper):
         for item in extracted:
 
-            # 1. Сущности
+            # сущности
             if item["type"] == "entity":
                 self.get_or_create_class(item["entity"].capitalize(), self.onto.Entity)
 
-            # 2. Нечеткие концепты
+            # нечеткие концепты
             elif item["type"] == "fuzzy_concept":
-                quality = item["quality"]
-                entity = item["entity"]
-
-                degree = fuzzy_mapper.map(quality)
+                degree = fuzzy_mapper.map(item["quality"])
                 if degree is None:
                     continue
 
-                class_name = f"{quality.capitalize()}{entity.capitalize()}"
-                cls = self.get_or_create_class(class_name, self.onto.FuzzyConcept)
-
+                cls = self.get_or_create_class(
+                    f"{item['quality'].capitalize()}{item['entity'].capitalize()}",
+                    self.onto.FuzzyConcept,
+                )
                 cls.fuzzyDegree.append(degree)
-                cls.comment.append(f"Нечеткий концепт: {quality} {entity}")
 
-            # 3. ObjectProperty
+            # обычные отношения
             elif item["type"] == "relation":
                 from_cls = self.get_or_create_class(
                     item["from"].capitalize(), self.onto.Entity
                 )
+                to_cls = self.get_or_create_class(
+                    item["to"].capitalize(), self.onto.Quality
+                )
+                from_cls.hasQuality.append(to_cls)
 
-                # hasQuality → Quality
-                if item["relation"] == "hasQuality":
-                    to_cls = self.get_or_create_class(
-                        item["to"].capitalize(), self.onto.Quality
-                    )
-                    from_cls.hasQuality.append(to_cls)
+            elif item["type"] == "fuzzy_relation":
+                from_cls = self.get_or_create_class(
+                    item["from"].capitalize(), self.onto.Entity
+                )
+                to_cls = self.get_or_create_class(
+                    item["to"].capitalize(), self.onto.Entity
+                )
 
-                # relatedTo → Entity
-                elif item["relation"] == "relatedTo":
-                    to_cls = self.get_or_create_class(
-                        item["to"].capitalize(), self.onto.Entity
-                    )
-                    from_cls.relatedTo.append(to_cls)
+                # создаём экземпляр нечеткого отношения
+                fr = self.onto.FuzzyRelation()
+
+                fr.hasSource.append(from_cls)
+                fr.hasTarget.append(to_cls)
+
+                if item["modifier"]:
+                    degree = fuzzy_mapper.map(item["modifier"])
+                    if degree is not None:
+                        fr.fuzzyDegree.append(degree)
 
     def save(self, path=f"data/fuzzy-{str(uuid.uuid4())[:8]}.owl"):
         self.onto.save(file=path, format="rdfxml")
