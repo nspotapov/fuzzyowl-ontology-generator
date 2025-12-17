@@ -3,14 +3,21 @@ from typing import List, Dict
 
 class EntityExtractor:
     def extract(self, doc) -> List[Dict]:
-        """
-        Извлекает кандидаты в классы онтологии
-        """
-        entities = []
+        results = []
 
         for token in doc:
-            # прилагательное + существительное
+            # ADJ + NOUN → нечеткий концепт
             if token.pos_ == "ADJ" and token.head.pos_ == "NOUN":
-                entities.append({"modifier": token.lemma_, "entity": token.head.lemma_})
+                results.append(
+                    {
+                        "type": "fuzzy_concept",
+                        "quality": token.lemma_,
+                        "entity": token.head.lemma_,
+                    }
+                )
 
-        return entities
+            # одиночные сущности
+            if token.pos_ == "NOUN":
+                results.append({"type": "entity", "entity": token.lemma_})
+
+        return results

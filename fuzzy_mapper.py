@@ -1,17 +1,16 @@
 class FuzzyMapper:
     def __init__(self):
-        self.fuzzy_terms = {
-            "низкий": 0.2,
-            "малый": 0.3,
+        self.linguistic_scale = {
+            "очень низкий": 0.1,
+            "низкий": 0.3,
             "средний": 0.5,
-            "высокий": 0.8,
+            "высокий": 0.7,
             "очень высокий": 0.9,
-            "пожилой": 0.7,
-            "молодой": 0.3,
+            "малый": 0.3,
+            "большой": 0.7,
+            "значительный": 0.8,
+            "незначительный": 0.2,
         }
 
-    def map(self, modifier: str) -> float | None:
-        """
-        Возвращает степень принадлежности
-        """
-        return self.fuzzy_terms.get(modifier)
+    def map(self, quality: str):
+        return self.linguistic_scale.get(quality)

@@ -8,30 +8,40 @@ class OntologyBuilder:
 
         with self.onto:
 
-            class Concept(Thing):
+            class Entity(Thing):
                 pass
 
-            # Объявляем аннотационное свойство
+            class Quality(Thing):
+                pass
+
+            class FuzzyConcept(Thing):
+                pass
+
             class fuzzyDegree(AnnotationProperty):
                 pass
 
-    def build(self, extracted_entities, fuzzy_mapper):
-        for item in extracted_entities:
-            entity_name = item["entity"].capitalize()
-            modifier = item["modifier"]
+    def build(self, extracted, fuzzy_mapper):
+        for item in extracted:
 
-            fuzzy_value = fuzzy_mapper.map(modifier)
-            if fuzzy_value is None:
-                continue
+            if item["type"] == "fuzzy_concept":
+                quality = item["quality"]
+                entity = item["entity"]
 
-            with self.onto:
-                cls = types.new_class(entity_name, (self.onto.Concept,))
+                degree = fuzzy_mapper.map(quality)
+                if degree is None:
+                    continue
 
-                # Добавляем аннотацию
-                cls.fuzzyDegree.append(fuzzy_value)
-                cls.comment.append(
-                    f"Нечеткий модификатор: '{modifier}', степень принадлежности = {fuzzy_value}"
-                )
+                class_name = f"{quality.capitalize()}{entity.capitalize()}"
+
+                with self.onto:
+                    cls = types.new_class(class_name, (self.onto.FuzzyConcept,))
+                    cls.fuzzyDegree.append(degree)
+                    cls.comment.append(f"Нечеткий концепт: {quality} {entity}")
+
+            elif item["type"] == "entity":
+                class_name = item["entity"].capitalize()
+                with self.onto:
+                    types.new_class(class_name, (self.onto.Entity,))
 
     def save(self, path="data/fuzzy.owl"):
         self.onto.save(file=path, format="rdfxml")
