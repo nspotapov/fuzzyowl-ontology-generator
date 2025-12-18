@@ -1,6 +1,10 @@
 import uuid
-from owlready2 import *
-import types
+from owlready2 import (
+    get_ontology,
+    Thing,
+    ObjectProperty,
+    AnnotationProperty,
+)
 
 
 class OntologyBuilder:
@@ -9,6 +13,7 @@ class OntologyBuilder:
         self.created_classes = {}
 
         with self.onto:
+            # ---------- Base classes ----------
 
             class Entity(Thing):
                 pass
@@ -19,34 +24,54 @@ class OntologyBuilder:
             class FuzzyConcept(Thing):
                 pass
 
-            # 🔥 Рефицированное отношение
             class FuzzyRelation(Thing):
                 pass
 
+            # ---------- Object properties ----------
+
+            class hasQuality(ObjectProperty):
+                domain = [Entity]
+                range = [Quality]
+
             class hasSource(ObjectProperty):
                 domain = [FuzzyRelation]
-                range = [Entity]
+                range = [Thing]
 
             class hasTarget(ObjectProperty):
                 domain = [FuzzyRelation]
-                range = [Entity]
+                range = [Thing]
+
+            # ---------- Fuzzy annotation ----------
 
             class fuzzyDegree(AnnotationProperty):
                 pass
 
+        self.Entity = self.onto.Entity
+        self.Quality = self.onto.Quality
+        self.FuzzyConcept = self.onto.FuzzyConcept
+        self.FuzzyRelation = self.onto.FuzzyRelation
+
     def get_or_create_class(self, name, base):
+        """
+        Создаёт или возвращает OWL-класс в онтологии
+        """
         if name not in self.created_classes:
-            self.created_classes[name] = types.new_class(name, (base,))
+            with self.onto:
+                cls = type(name, (base,), {})
+            self.created_classes[name] = cls
         return self.created_classes[name]
 
     def build(self, extracted, fuzzy_mapper):
+        """
+        Строит онтологию на основе извлечённых сущностей и отношений
+        """
         for item in extracted:
 
-            # сущности
+            # ---------- Entity ----------
             if item["type"] == "entity":
-                self.get_or_create_class(item["entity"].capitalize(), self.onto.Entity)
+                self.get_or_create_class(item["entity"].capitalize(), self.Entity)
 
-            # нечеткие концепты
+            # ---------- Fuzzy concept ----------
             elif item["type"] == "fuzzy_concept":
                 degree = fuzzy_mapper.map(item["quality"])
                 if degree is None:
@@ -54,38 +79,39 @@ class OntologyBuilder:
 
                 cls = self.get_or_create_class(
                     f"{item['quality'].capitalize()}{item['entity'].capitalize()}",
-                    self.onto.FuzzyConcept,
+                    self.FuzzyConcept,
                 )
                 cls.fuzzyDegree.append(degree)
 
-            # обычные отношения
+            # ---------- Quality relation ----------
             elif item["type"] == "relation":
                 from_cls = self.get_or_create_class(
-                    item["from"].capitalize(), self.onto.Entity
+                    item["from"].capitalize(), self.Entity
                 )
-                to_cls = self.get_or_create_class(
-                    item["to"].capitalize(), self.onto.Quality
-                )
+                to_cls = self.get_or_create_class(item["to"].capitalize(), self.Quality)
                 from_cls.hasQuality.append(to_cls)
 
+            # ---------- Fuzzy relation ----------
             elif item["type"] == "fuzzy_relation":
                 from_cls = self.get_or_create_class(
-                    item["from"].capitalize(), self.onto.Entity
+                    item["from"].capitalize(), self.Entity
                 )
-                to_cls = self.get_or_create_class(
-                    item["to"].capitalize(), self.onto.Entity
-                )
+                to_cls = self.get_or_create_class(item["to"].capitalize(), self.Entity)
 
-                # создаём экземпляр нечеткого отношения
-                fr = self.onto.FuzzyRelation()
-
+                fr = self.FuzzyRelation()
                 fr.hasSource.append(from_cls)
                 fr.hasTarget.append(to_cls)
 
-                if item["modifier"]:
+                if item.get("modifier"):
                     degree = fuzzy_mapper.map(item["modifier"])
                     if degree is not None:
                         fr.fuzzyDegree.append(degree)
 
-    def save(self, path=f"data/fuzzy-{str(uuid.uuid4())[:8]}.owl"):
+    def save(self, path=None):
+        """
+        Сохраняет онтологию в OWL-файл
+        """
+        if path is None:
+            path = f"data/fuzzy-{str(uuid.uuid4())[:8]}.owl"
+
         self.onto.save(file=path, format="rdfxml")
