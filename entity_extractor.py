@@ -1,52 +1,101 @@
-from typing import List, Dict
-
-
 class EntityExtractor:
-    def extract(self, doc) -> List[Dict]:
+    def __init__(self):
+        self.fuzzy_map = {
+            "сильно": 0.9,
+            "высокий": 0.7,
+            "высокая": 0.7,
+            "высоко": 0.7,
+            "умеренно": 0.5,
+            "слабо": 0.3,
+        }
+
+        self.relation_verbs = {
+            "влиять",
+            "повышать",
+            "увеличивать",
+            "снижать",
+            "уменьшать",
+        }
+
+        self.quality_words = {
+            "надежность",
+            "эффективность",
+            "производительность",
+            "стабильность",
+            "качество",
+        }
+
+    def extract(self, doc):
         results = []
 
-        for token in doc:
+        for sent in doc.sents:
+            tokens = list(sent)
 
-            # ADJ + NOUN → нечеткий концепт
-            if token.pos_ == "ADJ" and token.head.pos_ == "NOUN":
+            lemmas = [t.lemma_.lower() for t in tokens]
+
+            degree = None
+            modifier = None
+            for t in tokens:
+                if t.lemma_.lower() in self.fuzzy_map:
+                    modifier = t.lemma_.lower()
+                    degree = self.fuzzy_map[modifier]
+
+            # ----------- нечеткое качество: "Высокая производительность"
+            if (
+                len(tokens) >= 2
+                and tokens[0].pos_ == "ADJ"
+                and tokens[1].pos_ in {"NOUN", "PROPN"}
+                and tokens[0].lemma_.lower() in self.fuzzy_map
+            ):
                 results.append(
                     {
-                        "type": "fuzzy_concept",
-                        "quality": token.lemma_,
-                        "entity": token.head.lemma_,
+                        "type": "fuzzy_quality",
+                        "source": tokens[1].lemma_.capitalize(),
+                        "target": tokens[0].lemma_.capitalize(),
+                        "target_type": "quality",
+                        "degree": degree,
                     }
                 )
 
-                results.append(
-                    {
-                        "type": "relation",
-                        "relation": "hasQuality",
-                        "from": token.head.lemma_,
-                        "to": token.lemma_,
-                        "degree": None,
-                    }
-                )
+            # ----------- поиск глагола отношения
+            verb = None
+            for t in tokens:
+                if t.pos_ == "VERB" and t.lemma_.lower() in self.relation_verbs:
+                    verb = t
+                    break
 
-            # сущности
-            if token.pos_ == "NOUN":
-                results.append({"type": "entity", "entity": token.lemma_})
+            if not verb:
+                continue
 
-            # Нечеткие глагольные отношения
-            if token.pos_ == "VERB":
-                adverbs = [c for c in token.children if c.pos_ == "ADV"]
-                subjects = [c for c in token.children if c.dep_ == "nsubj"]
-                objects = [c for c in token.children if c.dep_ in ("obj", "obl")]
+            # ----------- источник (подлежащее)
+            source = None
+            for t in tokens:
+                if t.dep_ in {"nsubj", "nsubj:pass"}:
+                    source = t
+                    break
 
-                for subj in subjects:
-                    for obj in objects:
-                        results.append(
-                            {
-                                "type": "fuzzy_relation",
-                                "relation": "relatedTo",
-                                "from": subj.lemma_,
-                                "to": obj.lemma_,
-                                "modifier": adverbs[0].lemma_ if adverbs else None,
-                            }
-                        )
+            # ----------- цель (дополнение)
+            target = None
+            for t in tokens:
+                if t.dep_ in {"obj", "obl"} and t.pos_ in {"NOUN", "PROPN"}:
+                    target = t
+                    break
+
+            if not source or not target:
+                continue
+
+            target_type = (
+                "quality" if target.lemma_.lower() in self.quality_words else "entity"
+            )
+
+            results.append(
+                {
+                    "type": "fuzzy_relation" if degree else "relation",
+                    "source": source.lemma_.capitalize(),
+                    "target": target.lemma_.capitalize(),
+                    "target_type": target_type,
+                    "degree": degree,
+                }
+            )
 
         return results
