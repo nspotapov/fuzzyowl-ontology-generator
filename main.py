@@ -1,9 +1,10 @@
+# ./main.py
+
 import argparse
 from pathlib import Path
 
 from nlp_processor import NLPProcessor
 from entity_extractor import EntityExtractor
-from fuzzy_mapper import FuzzyMapper
 from ontology_builder import OntologyBuilder
 
 
@@ -25,8 +26,8 @@ def parse_args():
     parser.add_argument(
         "-o",
         "--output",
-        default="fuzzy.owl",
-        help="Путь к выходному OWL-файлу (по умолчанию fuzzy.owl)",
+        default=None,
+        help="Путь к выходному OWL-файлу",
     )
 
     return parser.parse_args()
@@ -35,21 +36,17 @@ def parse_args():
 def main():
     args = parse_args()
 
-    input_path = Path(args.input)
-    output_path = Path(args.output)
-
-    text = read_input_text(input_path)
+    text = read_input_text(Path(args.input))
 
     nlp = NLPProcessor()
     extractor = EntityExtractor()
-    fuzzy_mapper = FuzzyMapper()
     builder = OntologyBuilder()
 
     doc = nlp.process(text)
     extracted = extractor.extract(doc)
 
-    builder.build(extracted, fuzzy_mapper)
-    builder.save(str(output_path))
+    builder.build(extracted)
+    builder.save(args.output)
 
 
 if __name__ == "__main__":

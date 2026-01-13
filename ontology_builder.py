@@ -1,4 +1,6 @@
-import uuid
+# ./ontology_builder.py
+
+import datetime
 from owlready2 import (
     get_ontology,
     Thing,
@@ -13,7 +15,6 @@ class OntologyBuilder:
         self.created_classes = {}
 
         with self.onto:
-            # ---------- Base classes ----------
 
             class Entity(Thing):
                 pass
@@ -27,8 +28,6 @@ class OntologyBuilder:
             class FuzzyQualityRelation(Thing):
                 pass
 
-            # ---------- Object properties ----------
-
             class hasSource(ObjectProperty):
                 domain = [FuzzyRelation]
                 range = [Thing]
@@ -39,82 +38,67 @@ class OntologyBuilder:
 
             class fqHasSource(ObjectProperty):
                 domain = [FuzzyQualityRelation]
-                range = [Entity]
+                range = [Thing]
 
             class fqHasQuality(ObjectProperty):
                 domain = [FuzzyQualityRelation]
                 range = [Quality]
 
-            # ---------- Fuzzy annotation ----------
-
             class fuzzyDegree(AnnotationProperty):
                 pass
 
-        # ---------- Save references ----------
         self.Entity = self.onto.Entity
         self.Quality = self.onto.Quality
         self.FuzzyRelation = self.onto.FuzzyRelation
         self.FuzzyQualityRelation = self.onto.FuzzyQualityRelation
 
     def get_or_create_class(self, name, base):
+        name = name.replace(" ", "_")
         if name not in self.created_classes:
             with self.onto:
                 cls = type(name, (base,), {})
             self.created_classes[name] = cls
         return self.created_classes[name]
 
-    def build(self, extracted, fuzzy_mapper):
+    def build(self, extracted):
         for item in extracted:
 
             degree = item.get("degree")
 
-            # ---------- Entity ----------
-            if item["type"] == "entity":
-                self.get_or_create_class(item["entity"].capitalize(), self.Entity)
+            source_base = (
+                self.Entity if item["source_type"] == "entity" else self.Quality
+            )
+            target_base = (
+                self.Entity if item["target_type"] == "entity" else self.Quality
+            )
 
-            # ---------- Quality ----------
-            elif item["type"] == "quality":
-                self.get_or_create_class(item["quality"].capitalize(), self.Quality)
+            source_cls = self.get_or_create_class(item["source"], source_base)
+            target_cls = self.get_or_create_class(item["target"], target_base)
 
-            # ---------- Fuzzy quality relation ----------
-            elif item["type"] == "relation":
-                from_cls = self.get_or_create_class(
-                    item["source"].capitalize(), self.Entity
-                )
-                to_cls = self.get_or_create_class(
-                    item["target"].capitalize(), self.Quality
-                )
-
-                fq = self.FuzzyQualityRelation()
-                fq.fqHasSource.append(from_cls)
-                fq.fqHasQuality.append(to_cls)
-
-                if degree is not None:
-                    fq.fuzzyDegree.append(degree)
-
-            # ---------- Fuzzy relation ----------
-            elif item["type"] == "fuzzy_relation":
-                from_cls = self.get_or_create_class(
-                    item["source"].capitalize(), self.Entity
-                )
-
-                to_base = (
-                    self.Quality
-                    if item.get("target_type") == "quality"
-                    else self.Entity
-                )
-
-                to_cls = self.get_or_create_class(item["target"].capitalize(), to_base)
-
+            # ---------- Entity → Entity ----------
+            if (
+                item["type"] == "fuzzy_relation"
+                and item["source_type"] == "entity"
+                and item["target_type"] == "entity"
+            ):
                 fr = self.FuzzyRelation()
-                fr.hasSource.append(from_cls)
-                fr.hasTarget.append(to_cls)
+                fr.hasSource.append(source_cls)
+                fr.hasTarget.append(target_cls)
 
                 if degree is not None:
                     fr.fuzzyDegree.append(degree)
 
+            # ---------- Entity/Quality → Quality ----------
+            elif item["type"] in ("fuzzy_relation", "fuzzy_quality_relation"):
+                fq = self.FuzzyQualityRelation()
+                fq.fqHasSource.append(source_cls)
+                fq.fqHasQuality.append(target_cls)
+
+                if degree is not None:
+                    fq.fuzzyDegree.append(degree)
+
     def save(self, path=None):
         if path is None:
-            path = f"data/fuzzy-{str(uuid.uuid4())[:8]}.owl"
+            path = f"data/fuzzy-{int(datetime.datetime.now().timestamp())}.owl"
 
         self.onto.save(file=path, format="rdfxml")

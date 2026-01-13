@@ -1,3 +1,5 @@
+# ./nlp_processor.py
+
 import spacy
 
 
@@ -6,7 +8,4 @@ class NLPProcessor:
         self.nlp = spacy.load("ru_core_news_sm")
 
     def process(self, text: str):
-        """
-        Возвращает spaCy Doc
-        """
         return self.nlp(text)
