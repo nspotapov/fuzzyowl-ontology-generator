@@ -51,10 +51,6 @@ def main():
     builder.build(extracted, fuzzy_mapper)
     builder.save(str(output_path))
 
-    print("Онтология успешно создана")
-    print(f"Входной файл: {input_path}")
-    print(f"Выходной файл: {output_path}")
-
 
 if __name__ == "__main__":
     main()

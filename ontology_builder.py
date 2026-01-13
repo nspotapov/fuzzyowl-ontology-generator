@@ -66,8 +66,7 @@ class OntologyBuilder:
     def build(self, extracted, fuzzy_mapper):
         for item in extracted:
 
-            modifier = item.get("modifier")
-            degree = fuzzy_mapper.map(modifier) if modifier else None
+            degree = item.get("degree")
 
             # ---------- Entity ----------
             if item["type"] == "entity":
@@ -80,9 +79,11 @@ class OntologyBuilder:
             # ---------- Fuzzy quality relation ----------
             elif item["type"] == "relation":
                 from_cls = self.get_or_create_class(
-                    item["from"].capitalize(), self.Entity
+                    item["source"].capitalize(), self.Entity
                 )
-                to_cls = self.get_or_create_class(item["to"].capitalize(), self.Quality)
+                to_cls = self.get_or_create_class(
+                    item["target"].capitalize(), self.Quality
+                )
 
                 fq = self.FuzzyQualityRelation()
                 fq.fqHasSource.append(from_cls)
@@ -94,16 +95,16 @@ class OntologyBuilder:
             # ---------- Fuzzy relation ----------
             elif item["type"] == "fuzzy_relation":
                 from_cls = self.get_or_create_class(
-                    item["from"].capitalize(), self.Entity
+                    item["source"].capitalize(), self.Entity
                 )
 
-                # цель может быть и Entity, и Quality
                 to_base = (
                     self.Quality
                     if item.get("target_type") == "quality"
                     else self.Entity
                 )
-                to_cls = self.get_or_create_class(item["to"].capitalize(), to_base)
+
+                to_cls = self.get_or_create_class(item["target"].capitalize(), to_base)
 
                 fr = self.FuzzyRelation()
                 fr.hasSource.append(from_cls)
