@@ -31,11 +31,23 @@ class EntityExtractor:
         return "_".join(t.lemma_.capitalize() for t in parts)
 
     def is_quality(self, token):
-        """
-        Эвристика для качеств (корректно для русского):
-        надежность, эффективность, производительность и т.п.
-        """
-        return token.pos_ == "NOUN" and token.lemma_.lower().endswith("ость")
+        if token.pos_ != "NOUN":
+            return False
+
+        # если определялось прилагательным
+        for child in token.children:
+            if child.pos_ == "ADJ" and child.lemma_.lower() in self.fuzzy_map:
+                return True
+
+        # fallback по суффиксам
+        ABSTRACT_SUFFIXES = (
+            "ость",
+            "тельность",
+            "имость",
+            "ативность",
+            "енность",
+        )
+        return token.lemma_.lower().endswith(ABSTRACT_SUFFIXES)
 
     def extract(self, doc):
         results = []

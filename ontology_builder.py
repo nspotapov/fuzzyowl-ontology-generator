@@ -97,8 +97,10 @@ class OntologyBuilder:
                 if degree is not None:
                     fq.fuzzyDegree.append(degree)
 
-    def save(self, path=None):
+    def save(self, path=None) -> str:
         if path is None:
             path = f"data/fuzzy-{int(datetime.datetime.now().timestamp())}.owl"
 
         self.onto.save(file=path, format="rdfxml")
+
+        return path

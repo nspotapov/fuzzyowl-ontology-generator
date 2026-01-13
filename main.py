@@ -33,10 +33,17 @@ def parse_args():
     return parser.parse_args()
 
 
+def normalize_text(text: str) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return ". ".join(lines) + "."
+
+
 def main():
     args = parse_args()
 
     text = read_input_text(Path(args.input))
+
+    text = normalize_text(text)
 
     nlp = NLPProcessor()
     extractor = EntityExtractor()
@@ -46,7 +53,9 @@ def main():
     extracted = extractor.extract(doc)
 
     builder.build(extracted)
-    builder.save(args.output)
+    save_path = builder.save(args.output)
+
+    print(save_path)
 
 
 if __name__ == "__main__":
