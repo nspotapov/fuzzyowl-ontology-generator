@@ -1,10 +1,13 @@
+# ./entity_extractor.py
+
+
 class EntityExtractor:
     def __init__(self):
         self.fuzzy_map = {
-            "сильно": 0.9,
+            "очень": 0.9,
+            "сильно": 0.8,
             "высокий": 0.7,
             "высокая": 0.7,
-            "высоко": 0.7,
             "умеренно": 0.5,
             "слабо": 0.3,
         }
@@ -31,58 +34,38 @@ class EntityExtractor:
         for sent in doc.sents:
             tokens = list(sent)
 
-            lemmas = [t.lemma_.lower() for t in tokens]
-
             degree = None
-            modifier = None
             for t in tokens:
                 if t.lemma_.lower() in self.fuzzy_map:
-                    modifier = t.lemma_.lower()
-                    degree = self.fuzzy_map[modifier]
+                    degree = self.fuzzy_map[t.lemma_.lower()]
 
-            # ----------- нечеткое качество: "Высокая производительность"
-            if (
-                len(tokens) >= 2
-                and tokens[0].pos_ == "ADJ"
-                and tokens[1].pos_ in {"NOUN", "PROPN"}
-                and tokens[0].lemma_.lower() in self.fuzzy_map
-            ):
-                results.append(
-                    {
-                        "type": "fuzzy_quality",
-                        "source": tokens[1].lemma_.capitalize(),
-                        "target": tokens[0].lemma_.capitalize(),
-                        "target_type": "quality",
-                        "degree": degree,
-                    }
-                )
-
-            # ----------- поиск глагола отношения
-            verb = None
-            for t in tokens:
-                if t.pos_ == "VERB" and t.lemma_.lower() in self.relation_verbs:
-                    verb = t
-                    break
+            # ---------- поиск глагола ----------
+            verb = next(
+                (
+                    t
+                    for t in tokens
+                    if t.pos_ == "VERB" and t.lemma_.lower() in self.relation_verbs
+                ),
+                None,
+            )
 
             if not verb:
                 continue
 
-            # ----------- источник (подлежащее)
-            source = None
-            for t in tokens:
-                if t.dep_ in {"nsubj", "nsubj:pass"}:
-                    source = t
-                    break
+            # ---------- источник ----------
+            source = next(
+                (t for t in tokens if t.dep_ in {"nsubj", "nsubj:pass"}), None
+            )
 
-            # ----------- цель (дополнение)
-            target = None
-            for t in tokens:
-                if t.dep_ in {"obj", "obl"} and t.pos_ in {"NOUN", "PROPN"}:
-                    target = t
-                    break
+            # ---------- цель ----------
+            target = next((t for t in tokens if t.dep_ in {"obj", "obl"}), None)
 
             if not source or not target:
                 continue
+
+            source_type = (
+                "quality" if source.lemma_.lower() in self.quality_words else "entity"
+            )
 
             target_type = (
                 "quality" if target.lemma_.lower() in self.quality_words else "entity"
@@ -90,8 +73,9 @@ class EntityExtractor:
 
             results.append(
                 {
-                    "type": "fuzzy_relation" if degree else "relation",
+                    "type": "fuzzy_relation",
                     "source": source.lemma_.capitalize(),
+                    "source_type": source_type,
                     "target": target.lemma_.capitalize(),
                     "target_type": target_type,
                     "degree": degree,
