@@ -89,7 +89,7 @@ class OntologyBuilder:
                     fr.fuzzyDegree.append(degree)
 
             # ---------- Entity/Quality → Quality ----------
-            elif item["type"] in ("fuzzy_relation", "fuzzy_quality_relation"):
+            elif item["type"] == "fuzzy_relation":
                 fq = self.FuzzyQualityRelation()
                 fq.fqHasSource.append(source_cls)
                 fq.fqHasQuality.append(target_cls)

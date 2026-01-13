@@ -4,7 +4,6 @@
 class EntityExtractor:
     def __init__(self):
         self.fuzzy_map = {
-            "очень": 0.9,
             "сильно": 0.8,
             "высокий": 0.7,
             "высокая": 0.7,
@@ -20,13 +19,23 @@ class EntityExtractor:
             "уменьшать",
         }
 
-        self.quality_words = {
-            "надежность",
-            "эффективность",
-            "производительность",
-            "стабильность",
-            "качество",
-        }
+    def collect_compound(self, token):
+        """
+        Собирает составные имена: 'эффективность работы' → Эффективность_Работа
+        """
+        parts = [token]
+        for child in token.children:
+            if child.dep_ in {"nmod", "compound"}:
+                parts.append(child)
+        parts = sorted(parts, key=lambda t: t.i)
+        return "_".join(t.lemma_.capitalize() for t in parts)
+
+    def is_quality(self, token):
+        """
+        Эвристика для качеств (корректно для русского):
+        надежность, эффективность, производительность и т.п.
+        """
+        return token.pos_ == "NOUN" and token.lemma_.lower().endswith("ость")
 
     def extract(self, doc):
         results = []
@@ -34,12 +43,13 @@ class EntityExtractor:
         for sent in doc.sents:
             tokens = list(sent)
 
+            # ---------- степень нечеткости ----------
             degree = None
             for t in tokens:
                 if t.lemma_.lower() in self.fuzzy_map:
                     degree = self.fuzzy_map[t.lemma_.lower()]
 
-            # ---------- поиск глагола ----------
+            # ---------- глагол отношения ----------
             verb = next(
                 (
                     t
@@ -48,7 +58,6 @@ class EntityExtractor:
                 ),
                 None,
             )
-
             if not verb:
                 continue
 
@@ -63,20 +72,18 @@ class EntityExtractor:
             if not source or not target:
                 continue
 
-            source_type = (
-                "quality" if source.lemma_.lower() in self.quality_words else "entity"
-            )
+            source_name = self.collect_compound(source)
+            target_name = self.collect_compound(target)
 
-            target_type = (
-                "quality" if target.lemma_.lower() in self.quality_words else "entity"
-            )
+            source_type = "quality" if self.is_quality(source) else "entity"
+            target_type = "quality" if self.is_quality(target) else "entity"
 
             results.append(
                 {
                     "type": "fuzzy_relation",
-                    "source": source.lemma_.capitalize(),
+                    "source": source_name,
                     "source_type": source_type,
-                    "target": target.lemma_.capitalize(),
+                    "target": target_name,
                     "target_type": target_type,
                     "degree": degree,
                 }
